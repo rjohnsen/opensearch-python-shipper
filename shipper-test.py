@@ -46,58 +46,24 @@ def run():
             print("Input Correct File Path")
             raise ValueError("Invalid file path provided")
 
-        # Open the file in generator mode (line by line processing)
+        # Open the file and keep it open during the whole process
         try:
             with open(args.logfile, 'r') as log_file:
-                logs = (line for line in log_file)  # Generator to process lines lazily
-        except Exception as e:
-            print(f"Error reading file: {e}")
-            sys.exit(1)
+                logs = log_file.readlines()  # Read all lines at once
 
-        # Check if the index exists, if not create it with the desired field limit
-        if not os_client.indices.exists(index=index_name):
-            print(f"Index '{index_name}' does not exist. Creating it now.")
-            try:
-                os_client.indices.create(
-                    index=index_name,
-                    body={
-                        "settings": {
-                            "index.mapping.total_fields.limit": 2000  # Set desired field limit here
-                        }
-                    }
-                )
-                print(f"Index '{index_name}' created successfully with field limit 2000.")
-            except Exception as e:
-                print(f"Error creating index: {e}")
-                sys.exit(1)
-        else:
-            print(f"Index '{index_name}' already exists. Updating field limit to 2000.")
-            try:
-                os_client.indices.put_settings(
-                    index=index_name,
-                    body={
-                        "index.mapping.total_fields.limit": 2000  # Adjust this number as needed
-                    }
-                )
-                print(f"Field limit for index {index_name} updated successfully.")
-            except Exception as e:
-                print(f"Error updating field limit: {e}")
-                sys.exit(1)
-
-        # Bulk indexing with multithreading
-        try:
-            with ThreadPoolExecutor() as executor:
-                futures = []
-                for batch in chunked_logs(logs, BATCH_SIZE):
-                    futures.append(executor.submit(helpers.bulk, os_client, batch_trace_logs(index_name, batch, NOW), request_timeout=60))
-                
-                # Wait for all threads to complete
-                for future in futures:
-                    future.result()  # Raises any exception occurred in threads
+                # Bulk indexing with multithreading
+                with ThreadPoolExecutor() as executor:
+                    futures = []
+                    for batch in chunked_logs(logs, BATCH_SIZE):
+                        futures.append(executor.submit(helpers.bulk, os_client, batch_trace_logs(index_name, batch, NOW), request_timeout=60))
+                    
+                    # Wait for all threads to complete
+                    for future in futures:
+                        future.result()  # Raises any exception occurred in threads
 
             print("Bulk indexing completed successfully.")
         except Exception as e:
-            print(f"Error during bulk indexing: {e}")
+            print(f"Error reading file or during bulk indexing: {e}")
             sys.exit(1)
 
     except FileNotFoundError:
