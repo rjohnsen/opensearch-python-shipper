@@ -82,15 +82,6 @@ def run():
                 print(f"Error updating field limit: {e}")
                 sys.exit(1)
 
-        # Delete Indices
-        print("Deleting Existing Indices")
-        try:
-            os_client.indices.delete(index="*")  # Adjust based on actual use case
-            print("Indices deleted successfully.")
-        except Exception as e:
-            print(f"Error deleting indices: {e}")
-            sys.exit(1)
-
         # Bulk indexing
         try:
             helpers.bulk(os_client, batch_trace_logs(index_name, logs, NOW), request_timeout=60)
